@@ -1,0 +1,133 @@
+dotnet add package Microsoft.EntityFrameworkCore.Sqlite
+dotnet add package Microsoft.EntityFrameworkCore.Tools
+
+
+
+//
+
+namespace SimpleApi.Models
+{
+    public class Item
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public int Quantity { get; set; }
+    }
+}
+
+
+//
+
+using Microsoft.EntityFrameworkCore;
+using SimpleApi.Models;
+
+namespace SimpleApi.Data
+{
+    public class AppDbContext : DbContext
+    {
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+        public DbSet<Item> Items { get; set; }
+    }
+}
+
+
+//
+
+
+using Microsoft.EntityFrameworkCore;
+using SimpleApi.Data;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite("Data Source=items.db"));
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
+
+
+//
+
+
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using SimpleApi.Data;
+using SimpleApi.Models;
+
+namespace SimpleApi.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class ItemsController : ControllerBase
+    {
+        private readonly AppDbContext _context;
+
+        public ItemsController(AppDbContext context)
+        {
+            _context = context;
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<Item>>> GetItems()
+        {
+            return await _context.Items.ToListAsync();
+        }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Item>> GetItem(int id)
+        {
+            var item = await _context.Items.FindAsync(id);
+            if (item == null) return NotFound();
+            {
+            _context.Items.Add(item);
+            await _context.SaveChangesAsync();
+            return CreatedAtAction(nameof(GetItem), new { id = item.Id }, item);
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutItem(int id, Item item)
+        {
+            if (id != item.Id) return BadRequest();
+            _context.Entry(item).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteItem(int id)
+        {
+            var item = await _context.Items.FindAsync(id);
+            if (item == null) return NotFound();
+            _context.Items.Remove(item);
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+    }
+}
+
+
+//
+
+
+dotnet ef migrations add InitialCreate
+dotnet ef database update
+
+
+//
+
+dotnet run
+https://localhost:5001/swagger
